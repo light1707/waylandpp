@@ -44,8 +44,8 @@ namespace wayland
     {
       struct listener_t
       {
-        wl_listener listener;
-        void *user;
+        wl_listener listener = { { nullptr, nullptr }, nullptr };
+        void *user = nullptr;
       };
     }
 
@@ -64,14 +64,14 @@ namespace wayland
         detail::listener_t destroy_listener;
         detail::listener_t client_created_listener;
         wayland::detail::any user_data;
-        unsigned int counter;
+        unsigned int counter = 0;
       };
 
-      wl_display *display;
-      data_t *data;
+      wl_display *display = nullptr;
+      data_t *data = nullptr;
 
       static void destroy_func(wl_listener *listener, void *data);
-      static void client_created_func(wl_listener *listener, void *data);
+      static void client_created_func(wl_listener *listener, void *cl);
       static data_t *wl_display_get_user_data(wl_display *display);
 
     protected:
@@ -98,13 +98,15 @@ namespace wayland
        * \sa display_t::on_destroy
        */
       ~display_t();
-      display_t(const display_t &d);
-      display_t &operator=(const display_t& p);
-      bool operator==(const display_t &c) const;
+      display_t(const display_t& d);
+      display_t(display_t&& d) noexcept;
+      display_t &operator=(const display_t& d);
+      display_t &operator=(display_t&& d) noexcept;
+      bool operator==(const display_t& d) const;
       wl_display *c_ptr() const;
       wayland::detail::any &user_data();
 
-      event_loop_t get_event_loop();
+      event_loop_t get_event_loop() const;
 
       /** Add a socket to Wayland display for the clients to connect.
        *
@@ -128,8 +130,8 @@ namespace wayland
        * XDG_RUNTIME_DIR path or if the socket name is already in use.
        */
 
-      int add_socket(std::string name);
-      std::string add_socket_auto();
+      int add_socket(const std::string& name) const;
+      std::string add_socket_auto() const;
 
       /**  Add a socket with an existing fd to Wayland display for the clients to connect.
        *
@@ -140,24 +142,24 @@ namespace wayland
        * The fd must be properly set to CLOEXEC and bound to a socket file
        * with both bind() and listen() already called.
        */
-      int add_socket_fd(int sock_fd);
-      void terminate();
-      void run();
-      void flush_clients();
+      int add_socket_fd(int sock_fd) const;
+      void terminate() const;
+      void run() const;
+      void flush_clients() const;
 
       /** Get the current serial number
        *
        * This function returns the most recent serial number, but does not
        * increment it.
        */
-      uint32_t get_serial();
+      uint32_t get_serial() const;
 
       /** Get the next serial number
        *
        * This function increments the display serial number and returns the
        * new value.
        */
-      uint32_t next_serial();
+      uint32_t next_serial() const;
       std::function<void()> &on_destroy();
 
       /** Registers a listener for the client connection signal.
@@ -174,7 +176,7 @@ namespace wayland
        * This function returns the list of clients currently
        * connected to the display.
        */
-      const std::list<client_t> get_client_list();
+      std::list<client_t> get_client_list() const;
 
       /** Set a filter function for global objects
        *
@@ -216,24 +218,23 @@ namespace wayland
     private:
       struct data_t
       {
-        wl_client *client;
+        wl_client *client = nullptr;
         std::function<void()> destroy;
         std::function<void(resource_t&)> resource_created;
         detail::listener_t destroy_listener;
         detail::listener_t resource_created_listener;
         wayland::detail::any user_data;
-        unsigned int counter;
-        bool destroyed;
+        unsigned int counter = 0;
+        bool destroyed = false;
       };
 
-      wl_client *client;
-      data_t *data;
+      wl_client *client = nullptr;
+      data_t *data = nullptr;
 
-      client_t() = delete;
       static void destroy_func(wl_listener *listener, void *data);
-      static void resource_created_func(wl_listener *listener, void *data);
+      static void resource_created_func(wl_listener *listener, void *res);
       static enum wl_iterator_result resource_iterator(struct wl_resource *resource, void *data);
-      data_t *wl_client_get_user_data(wl_client *client);
+      static data_t *wl_client_get_user_data(wl_client *client);
 
     protected:
       client_t(wl_client *c);
@@ -269,13 +270,16 @@ namespace wayland
        * On failure this function sets errno accordingly and returns NULL.
        */
       client_t(display_t &display, int fd);
+      client_t() = delete;
       ~client_t();
-      client_t(const client_t &p);
-      client_t &operator=(const client_t& p);
+      client_t(const client_t &c);
+      client_t(client_t &&c) noexcept;
+      client_t &operator=(const client_t& c);
+      client_t &operator=(client_t&& c) noexcept;
       bool operator==(const client_t &c) const;
       wl_client *c_ptr() const;
       wayland::detail::any &user_data();
-      void destroy();
+      void destroy() const;
 
       /** Flush pending events to the client
        *
@@ -284,7 +288,7 @@ namespace wayland
        * requests and goes back to block in the event loop.  This function
        * flushes all queued up events for a client immediately.
        */
-      void flush();
+      void flush() const;
 
       /** Return Unix credentials for the client
        *
@@ -301,7 +305,7 @@ namespace wayland
        * credentials for the compositor.  The credentials for the socketpair
        * are set at creation time in the compositor.
        */
-      void get_credentials(pid_t &pid, uid_t &uid, gid_t &gid);
+      void get_credentials(pid_t &pid, uid_t &uid, gid_t &gid) const;
 
       /** Get the file descriptor for the client
        *
@@ -329,7 +333,7 @@ namespace wayland
        * from the client's file descriptor. The compositor can validate the client's
        * request with the contexts and make a decision whether it permits or deny it.
        */
-      int get_fd();
+      int get_fd() const;
       std::function<void()> &on_destroy();
 
       /** Look up an object in the client name space
@@ -341,7 +345,7 @@ namespace wayland
        * object ID.
        */
       resource_t get_object(uint32_t id);
-      void post_no_memory();
+      void post_no_memory() const;
 
       /** Add a listener for the client's resource creation signal
        *
@@ -354,8 +358,8 @@ namespace wayland
        *
        * \return The display object the client is associated with.
        */
-      display_t get_display();
-      std::list<resource_t> get_resource_list();
+      display_t get_display() const;
+      std::list<resource_t> get_resource_list() const;
     };
 
     class resource_t
@@ -364,29 +368,34 @@ namespace wayland
       // base class for event listener storage.
       struct events_base_t
       {
-        virtual ~events_base_t() { }
+        events_base_t() = default;
+        events_base_t(const events_base_t& e) = default;
+        events_base_t(events_base_t&& e) = default;
+        events_base_t& operator=(const events_base_t& e) = default;
+        events_base_t& operator=(events_base_t&& e) = default;
+        virtual ~events_base_t() = default;
       };
 
     private:
       struct data_t
       {
-        wl_resource *resource;
+        wl_resource *resource = nullptr;
         std::shared_ptr<events_base_t> events;
         std::function<void()> destroy;
         detail::listener_t destroy_listener;
         wayland::detail::any user_data;
-        unsigned int counter;
-        bool destroyed;
+        unsigned int counter = 0;
+        bool destroyed = false;
       };
 
-      wl_resource *resource;
-      data_t *data;
+      wl_resource *resource = nullptr;
+      data_t *data = nullptr;
 
       static void destroy_func(wl_listener *listener, void *data);
       static int c_dispatcher(const void *implementation, void *target,
                               uint32_t opcode, const wl_message *message,
                               wl_argument *args);
-      static int dummy_dispatcher(int opcode, std::vector<wayland::detail::any> args, std::shared_ptr<resource_t::events_base_t> events);
+      static int dummy_dispatcher(int opcode, const std::vector<wayland::detail::any>& args, const std::shared_ptr<resource_t::events_base_t>& events);
 
     protected:
       // Interface desctiption filled in by the each interface class
@@ -397,17 +406,17 @@ namespace wayland
         instance of a class derived from events_base_t, allocated with
         new. Will automatically be deleted upon destruction.
       */
-      void set_events(std::shared_ptr<events_base_t> events,
-                      int(*dispatcher)(int, std::vector<wayland::detail::any>, std::shared_ptr<resource_t::events_base_t>));
+      void set_events(const std::shared_ptr<events_base_t>& events,
+                      int(*dispatcher)(int, const std::vector<wayland::detail::any>&, const std::shared_ptr<resource_t::events_base_t>&));
 
       // Retrieve the perviously set user data
-      std::shared_ptr<events_base_t> get_events();
+      std::shared_ptr<events_base_t> get_events() const;
 
-      void post_event_array(uint32_t opcode, std::vector<wayland::detail::argument_t> v);
-      void queue_event_array(uint32_t opcode, std::vector<wayland::detail::argument_t> v);
+      void post_event_array(uint32_t opcode, const std::vector<wayland::detail::argument_t>& v) const;
+      void queue_event_array(uint32_t opcode, const std::vector<wayland::detail::argument_t>& v) const;
 
       template <typename...T>
-      void post_event(uint32_t opcode, T...args)
+      void post_event(uint32_t opcode, T...args) const
       {
         std::vector<wayland::detail::argument_t> v = { wayland::detail::argument_t(args)... };
         if(c_ptr())
@@ -415,7 +424,7 @@ namespace wayland
       }
 
       template <typename...T>
-      void queue_event(uint32_t opcode, T...args)
+      void queue_event(uint32_t opcode, T...args) const
       {
         std::vector<wayland::detail::argument_t> v = { wayland::detail::argument_t(args)... };
         if(c_ptr())
@@ -423,7 +432,7 @@ namespace wayland
       }
 
       template <typename...T>
-      void send_event(bool post, uint32_t opcode, T...args)
+      void send_event(bool post, uint32_t opcode, T...args) const
       {
         if(post)
           post_event(opcode, args...);
@@ -431,7 +440,7 @@ namespace wayland
           queue_event(opcode, args...);
       }
 
-      void post_error(uint32_t code, std::string msg);
+      void post_error(uint32_t code, const std::string& msg) const;
 
       resource_t(wl_resource *c);
       void init();
@@ -440,7 +449,7 @@ namespace wayland
       friend class client_t;
 
     public:
-      resource_t();
+      resource_t() = default;
 
       /** Create a new resource object
        *
@@ -452,15 +461,17 @@ namespace wayland
        * Listeners added with \a client_t::on_resource_created will be
        * notified at the end of this function.
        */
-      resource_t(client_t client, const wl_interface *interface, int version, uint32_t id);
+      resource_t(const client_t& client, const wl_interface *interface, int version, uint32_t id);
       ~resource_t();
-      resource_t(const resource_t &p);
-      resource_t &operator=(const resource_t& p);
-      bool operator==(const resource_t &r) const;
+      resource_t(const resource_t &r);
+      resource_t(resource_t &&r) noexcept;
+      resource_t &operator=(const resource_t& r);
+      resource_t &operator=(resource_t&& r) noexcept;
+      bool operator==(const resource_t& r) const;
       operator bool() const;
       wl_resource *c_ptr() const;
       wayland::detail::any &user_data();
-      void destroy();
+      void destroy() const;
 
       /** \brief Check whether this wrapper actually wraps an object
        *  \return true if there is an underlying object, false if this wrapper is
@@ -474,9 +485,9 @@ namespace wayland
        * of the client, this function can be called to notify the client of
        * this circumstance.
        */
-      void post_no_memory();
-      uint32_t get_id();
-      client_t get_client();
+      void post_no_memory() const;
+      uint32_t get_id() const;
+      client_t get_client() const;
       unsigned int get_version() const;
 
       /** Retrieve the interface name (class) of a resource object.
@@ -493,17 +504,15 @@ namespace wayland
       {
         std::function<void(client_t, resource)> bind;
         wayland::detail::any user_data;
-        unsigned int counter;
+        unsigned int counter = 0;
       };
 
-      wl_global *global;
-      data_t *data;
-
-      global_t() = delete;
+      wl_global *global = nullptr;
+      data_t *data = nullptr;
 
       static void bind_func(struct wl_client *cl, void *d, uint32_t ver, uint32_t id)
       {
-        data_t *data = reinterpret_cast<data_t*>(d);
+        auto *data = reinterpret_cast<data_t*>(d);
         client_t client(cl);
         resource res(client, ver, id);
         if(data->bind)
@@ -522,6 +531,8 @@ namespace wayland
       }
 
     public:
+      global_t() = delete;
+
       global_t(display_t &display, unsigned int version = resource::max_version)
       {
         data = new data_t;
@@ -534,19 +545,33 @@ namespace wayland
         fini();
       }
 
-      global_t(const global_t &g)
+      global_t(const global_t& g)
       {
         global = g.global;
         data = g.data;
         data->counter++;
       }
 
+      global_t(global_t&& g) noexcept
+      {
+        operator=(std::move(g));
+      }
+
       global_t &operator=(const global_t& g)
       {
+        if(&g == this)
+          return *this;
         fini();
         global = g.global;
         data = g.data;
         data->counter++;
+        return *this;
+      }
+
+      global_t &operator=(global_t&& g) noexcept
+      {
+        std::swap(global, g.global);
+        std::swap(data, g.data);
         return *this;
       }
 
@@ -569,7 +594,7 @@ namespace wayland
        * If no global filter has been registered, this funtion will
        * return true, allowing the global to be visible to the client
        */
-      bool is_visible(client_t client)
+      bool is_visible(const client_t& client)
       {
         return wl_global_is_visible(client.c_ptr(), c_ptr());
       }
@@ -597,13 +622,13 @@ namespace wayland
         std::list<std::function<int(int)>> signal_funcs;
         std::list<std::function<void()>> idle_funcs;
         wayland::detail::any user_data;
-        unsigned int counter;
+        unsigned int counter = 0;
       };
 
-      wl_event_loop *event_loop;
-      data_t *data;
+      wl_event_loop *event_loop = nullptr;
+      data_t *data = nullptr;
 
-      data_t *wl_event_loop_get_user_data(wl_event_loop *client);
+      static data_t *wl_event_loop_get_user_data(wl_event_loop *client);
       static void destroy_func(wl_listener *listener, void *data);
       static int event_loop_fd_func(int fd, uint32_t mask, void *data);
       static int event_loop_timer_func(void *data);
@@ -620,9 +645,11 @@ namespace wayland
     public:
       event_loop_t();
       ~event_loop_t();
-      event_loop_t(const event_loop_t &p);
-      event_loop_t &operator=(const event_loop_t& p);
-      bool operator==(const event_loop_t &p) const;
+      event_loop_t(const event_loop_t& e);
+      event_loop_t(event_loop_t&& e) noexcept;
+      event_loop_t &operator=(const event_loop_t& e);
+      event_loop_t &operator=(event_loop_t&& e) noexcept;
+      bool operator==(const event_loop_t& e) const;
       wl_event_loop *c_ptr() const;
       wayland::detail::any &user_data();
 
@@ -631,22 +658,22 @@ namespace wayland
       event_source_t add_signal(int signal_number, const std::function<int(int)> &func);
       event_source_t add_idle(const std::function<void()> &func);
       const std::function<void()> &on_destroy();
-      int dispatch(int timeout);
-      void dispatch_idle();
-      int get_fd();
+      int dispatch(int timeout) const;
+      void dispatch_idle() const;
+      int get_fd() const;
     };
 
     class event_source_t
     {
     private:
-      wl_event_source *event_source;
-      event_source_t() = delete;
+      wl_event_source *event_source = nullptr;
 
     protected:
       event_source_t(wl_event_source *p);
       friend class event_loop_t;
 
     public:
+      event_source_t() = delete;
       wl_event_loop *c_ptr() const;
       int timer_update(int ms_delay);
       int fd_update(uint32_t mask);

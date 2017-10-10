@@ -38,20 +38,19 @@ display_t::data_t *display_t::wl_display_get_user_data(wl_display *display)
   wl_listener *listener = wl_display_get_destroy_listener(display, destroy_func);
   if(listener)
     return reinterpret_cast<data_t*>(reinterpret_cast<listener_t*>(listener)->user);
-  else
-    return NULL;
+  return nullptr;
 }
 
-void display_t::destroy_func(wl_listener *listener, void *)
+void display_t::destroy_func(wl_listener *listener, void */*unused*/)
 {
-  display_t::data_t *data = reinterpret_cast<display_t::data_t*>(reinterpret_cast<listener_t*>(listener)->user);
+  auto *data = reinterpret_cast<display_t::data_t*>(reinterpret_cast<listener_t*>(listener)->user);
   if(data->destroy)
     data->destroy();
 }
 
 void display_t::client_created_func(wl_listener *listener, void *cl)
 {
-  display_t::data_t *data = reinterpret_cast<display_t::data_t*>(reinterpret_cast<listener_t*>(listener)->user);
+  auto *data = reinterpret_cast<display_t::data_t*>(reinterpret_cast<listener_t*>(listener)->user);
   client_t client(reinterpret_cast<wl_client*>(cl));
   if(data->client_created)
     data->client_created(client);
@@ -102,23 +101,37 @@ display_t::~display_t()
   fini();
 }
 
-display_t::display_t(const display_t &p)
+display_t::display_t(const display_t& d)
 {
-  display = p.display;
-  data = p.data;
+  display = d.display;
+  data = d.data;
   data->counter++;
 }
 
-display_t &display_t::operator=(const display_t& p)
+display_t::display_t(display_t&& d) noexcept
 {
+  operator=(std::move(d));
+}
+
+display_t &display_t::operator=(const display_t& d)
+{
+  if(&d == this)
+    return *this;
   fini();
-  display = p.display;
-  data = p.data;
+  display = d.display;
+  data = d.data;
   data->counter++;
   return *this;
 }
 
-bool display_t::operator==(const display_t &d) const
+display_t &display_t::operator=(display_t&& d) noexcept
+{
+  std::swap(display, d.display);
+  std::swap(data, d.data);
+  return *this;
+}
+
+bool display_t::operator==(const display_t& d) const
 {
   return c_ptr() == d.c_ptr();
 }
@@ -135,47 +148,47 @@ wayland::detail::any &display_t::user_data()
   return data->user_data;
 }
 
-event_loop_t display_t::get_event_loop()
+event_loop_t display_t::get_event_loop() const
 {
   return wl_display_get_event_loop(c_ptr());
 }
 
-int display_t::add_socket(std::string name)
+int display_t::add_socket(const std::string& name) const
 {
   return wl_display_add_socket(c_ptr(), name.c_str());
 }
 
-std::string display_t::add_socket_auto()
+std::string display_t::add_socket_auto() const
 {
   return wl_display_add_socket_auto(c_ptr());
 }
 
-int display_t::add_socket_fd(int sock_fd)
+int display_t::add_socket_fd(int sock_fd) const
 {
   return wl_display_add_socket_fd(c_ptr(), sock_fd);
 }
 
-void display_t::terminate()
+void display_t::terminate() const
 {
   wl_display_terminate(c_ptr());
 }
 
-void display_t::run()
+void display_t::run() const
 {
   wl_display_run(c_ptr());
 }
 
-void display_t::flush_clients()
+void display_t::flush_clients() const
 {
   wl_display_flush_clients(c_ptr());
 }
 
-uint32_t display_t::get_serial()
+uint32_t display_t::get_serial() const
 {
   return wl_display_get_serial(c_ptr());
 }
 
-uint32_t display_t::next_serial()
+uint32_t display_t::next_serial() const
 {
   return wl_display_next_serial(c_ptr());
 }
@@ -190,13 +203,13 @@ std::function<void(client_t&)> &display_t::on_client_created()
   return data->client_created;
 }
 
-const std::list<client_t> display_t::get_client_list()
+std::list<client_t> display_t::get_client_list() const
 {
   std::list<client_t> clients;
-  wl_client *client;
+  wl_client *client = nullptr;
   wl_list *list = wl_display_get_client_list(c_ptr());
   wl_client_for_each(client, list)
-    clients.push_back(client_t(client));
+    clients.emplace_back(client_t(client));
   return clients;
 }
 
@@ -207,13 +220,12 @@ client_t::data_t *client_t::wl_client_get_user_data(wl_client *client)
   wl_listener *listener = wl_client_get_destroy_listener(client, destroy_func);
   if(listener)
     return reinterpret_cast<data_t*>(reinterpret_cast<listener_t*>(listener)->user);
-  else
-    return NULL;
+  return nullptr;
 }
 
-void client_t::destroy_func(wl_listener *listener, void *)
+void client_t::destroy_func(wl_listener *listener, void */*unused*/)
 {
-  data_t *data = reinterpret_cast<data_t*>(reinterpret_cast<listener_t*>(listener)->user);
+  auto *data = reinterpret_cast<data_t*>(reinterpret_cast<listener_t*>(listener)->user);
   if(data->destroy)
     data->destroy();
   data->destroyed = true;
@@ -223,7 +235,7 @@ void client_t::destroy_func(wl_listener *listener, void *)
 
 void client_t::resource_created_func(wl_listener *listener, void *res)
 {
-  data_t *data = reinterpret_cast<data_t*>(reinterpret_cast<listener_t*>(listener)->user);
+  auto *data = reinterpret_cast<data_t*>(reinterpret_cast<listener_t*>(listener)->user);
   resource_t resource(reinterpret_cast<wl_resource*>(res));
   if(data->resource_created)
     data->resource_created(resource);
@@ -271,23 +283,37 @@ client_t::~client_t()
   fini();
 }
 
-client_t::client_t(const client_t &p)
+client_t::client_t(const client_t &c)
 {
-  client = p.client;
-  data = p.data;
+  client = c.client;
+  data = c.data;
   data->counter++;
 }
 
-client_t &client_t::operator=(const client_t& p)
+client_t::client_t(client_t&& c) noexcept
 {
+  operator=(std::move(c));
+}
+
+client_t &client_t::operator=(const client_t& c)
+{
+  if(&c == this)
+    return *this;
   fini();
-  client = p.client;
-  data = p.data;
+  client = c.client;
+  data = c.data;
   data->counter++;
   return *this;
 }
 
-bool client_t::operator==(const client_t &c) const
+client_t &client_t::operator=(client_t&& c) noexcept
+{
+  std::swap(client, c.client);
+  std::swap(data, c.data);
+  return *this;
+}
+
+bool client_t::operator==(const client_t& c) const
 {
   return c_ptr() == c.c_ptr();
 }
@@ -304,22 +330,22 @@ wayland::detail::any &client_t::user_data()
   return data->user_data;
 }
 
-void client_t::destroy()
+void client_t::destroy() const
 {
   wl_client_destroy(c_ptr());
 }
 
-void client_t::flush()
+void client_t::flush() const
 {
   wl_client_flush(c_ptr());
 }
 
-void client_t::get_credentials(pid_t &pid, uid_t &uid, gid_t &gid)
+void client_t::get_credentials(pid_t &pid, uid_t &uid, gid_t &gid) const
 {
   wl_client_get_credentials(c_ptr(), &pid, &uid, &gid);
 }
 
-int client_t::get_fd()
+int client_t::get_fd() const
 {
   return wl_client_get_fd(c_ptr());
 }
@@ -334,11 +360,10 @@ resource_t client_t::get_object(uint32_t id)
   wl_resource *resource = wl_client_get_object(client, id);
   if(resource)
     return resource_t(resource);
-  else
-    return resource_t();
+  return resource_t();
 }
 
-void client_t::post_no_memory()
+void client_t::post_no_memory() const
 {
   wl_client_post_no_memory(c_ptr());
 }
@@ -348,7 +373,7 @@ std::function<void(resource_t&)> &client_t::on_resource_created()
   return data->resource_created;
 }
 
-display_t client_t::get_display()
+display_t client_t::get_display() const
 {
   return wl_client_get_display(c_ptr());
 }
@@ -359,7 +384,7 @@ enum wl_iterator_result client_t::resource_iterator(struct wl_resource *resource
   return WL_ITERATOR_CONTINUE;
 }
 
-std::list<resource_t> client_t::get_resource_list()
+std::list<resource_t> client_t::get_resource_list() const
 {
   std::list<resource_t> resources;
   wl_client_for_each_resource(c_ptr(), resource_iterator, &resources);
@@ -368,9 +393,9 @@ std::list<resource_t> client_t::get_resource_list()
 
 //-----------------------------------------------------------------------------
 
-void resource_t::destroy_func(wl_listener *listener, void *)
+void resource_t::destroy_func(wl_listener *listener, void */*unused*/)
 {
-  resource_t::data_t *data = reinterpret_cast<resource_t::data_t*>(reinterpret_cast<listener_t*>(listener)->user);
+  auto *data = reinterpret_cast<resource_t::data_t*>(reinterpret_cast<listener_t*>(listener)->user);
   if(data->destroy)
     data->destroy();
   data->destroyed = true;
@@ -378,7 +403,7 @@ void resource_t::destroy_func(wl_listener *listener, void *)
     delete data;
 }
 
-int resource_t::dummy_dispatcher(int opcode, std::vector<wayland::detail::any> args, std::shared_ptr<resource_t::events_base_t> events)
+int resource_t::dummy_dispatcher(int opcode, const std::vector<wayland::detail::any>& args, const std::shared_ptr<resource_t::events_base_t>& events)
 {
   return 0;
 }
@@ -406,11 +431,7 @@ void resource_t::fini()
     }
 }
 
-resource_t::resource_t()
-{
-}
-
-resource_t::resource_t(client_t client, const wl_interface *interface, int version, uint32_t id)
+resource_t::resource_t(const client_t& client, const wl_interface *interface, int version, uint32_t id)
 {
   resource = wl_resource_create(client.c_ptr(), interface, version, id);
   init();
@@ -431,25 +452,39 @@ resource_t::~resource_t()
   fini();
 }
 
-resource_t::resource_t(const resource_t &p)
+resource_t::resource_t(const resource_t &r)
 {
-  resource = p.resource;
-  data = p.data;
+  resource = r.resource;
+  data = r.data;
   if(data)
     data->counter++;
 }
 
-resource_t &resource_t::operator=(const resource_t& p)
+resource_t::resource_t(resource_t &&r) noexcept
 {
+  operator=(std::move(r));
+}
+
+resource_t &resource_t::operator=(const resource_t& r)
+{
+  if(&r == this)
+    return *this;
   fini();
-  resource = p.resource;
-  data = p.data;
+  resource = r.resource;
+  data = r.data;
   if(data)
     data->counter++;
   return *this;
 }
 
-bool resource_t::operator==(const resource_t &r) const
+resource_t &resource_t::operator=(resource_t&& r) noexcept
+{
+  std::swap(resource, r.resource);
+  std::swap(data, r.data);
+  return *this;
+}
+
+bool resource_t::operator==(const resource_t& r) const
 {
   return resource == r.resource;
 }
@@ -476,7 +511,7 @@ wayland::detail::any &resource_t::user_data()
   return data->user_data;
 }
 
-void resource_t::destroy()
+void resource_t::destroy() const
 {
   wl_resource_destroy(c_ptr());
 }
@@ -554,13 +589,13 @@ int resource_t::c_dispatcher(const void *implementation, void *target, uint32_t 
       c++;
     }
 
-  typedef int(*dispatcher_func)(int, std::vector<any>, std::shared_ptr<resource_t::events_base_t>);
-  dispatcher_func dispatcher = reinterpret_cast<dispatcher_func>(const_cast<void*>(implementation));
+  using dispatcher_func = int(*)(int, std::vector<any>, std::shared_ptr<resource_t::events_base_t>);
+  auto dispatcher = reinterpret_cast<dispatcher_func>(const_cast<void*>(implementation));
   return dispatcher(opcode, vargs, p.get_events());
 }
 
-void resource_t::set_events(std::shared_ptr<events_base_t> events,
-                         int(*dispatcher)(int, std::vector<any>, std::shared_ptr<resource_t::events_base_t>))
+void resource_t::set_events(const std::shared_ptr<events_base_t>& events,
+                         int(*dispatcher)(int, const std::vector<any>&, const std::shared_ptr<resource_t::events_base_t>&))
 {
   // set only one time
   if(!data->events)
@@ -571,45 +606,45 @@ void resource_t::set_events(std::shared_ptr<events_base_t> events,
     }
 }
 
-std::shared_ptr<resource_t::events_base_t> resource_t::get_events()
+std::shared_ptr<resource_t::events_base_t> resource_t::get_events() const
 {
   return data->events;
 }
 
-void resource_t::post_event_array(uint32_t opcode, std::vector<argument_t> v)
+void resource_t::post_event_array(uint32_t opcode, const std::vector<argument_t>& v) const
 {
-  wl_argument *args = new wl_argument[v.size()];
+  auto *args = new wl_argument[v.size()];
   for(unsigned int c = 0; c < v.size(); c++)
     args[c] = v[c].get_c_argument();
   wl_resource_post_event_array(c_ptr(), opcode, args);
   delete[] args;
 }
 
-void resource_t::queue_event_array(uint32_t opcode, std::vector<argument_t> v)
+void resource_t::queue_event_array(uint32_t opcode, const std::vector<argument_t>& v) const
 {
-  wl_argument *args = new wl_argument[v.size()];
+  auto *args = new wl_argument[v.size()];
   for(unsigned int c = 0; c < v.size(); c++)
     args[c] = v[c].get_c_argument();
   wl_resource_queue_event_array(c_ptr(), opcode, args);
   delete[] args;
 }
 
-void resource_t::post_error(uint32_t code, std::string msg)
+void resource_t::post_error(uint32_t code, const std::string& msg) const
 {
   wl_resource_post_error(c_ptr(), code, "%s", msg.c_str());
 }
 
-void resource_t::post_no_memory()
+void resource_t::post_no_memory() const
 {
   wl_resource_post_no_memory(c_ptr());
 }
 
-uint32_t resource_t::get_id()
+uint32_t resource_t::get_id() const
 {
   return wl_resource_get_id(c_ptr());
 }
 
-client_t resource_t::get_client()
+client_t resource_t::get_client() const
 {
   return client_t(wl_resource_get_client(c_ptr()));
 }
@@ -636,38 +671,37 @@ event_loop_t::data_t *event_loop_t::wl_event_loop_get_user_data(wl_event_loop *c
   wl_listener *listener = wl_event_loop_get_destroy_listener(client, destroy_func);
   if(listener)
     return reinterpret_cast<data_t*>(reinterpret_cast<listener_t*>(listener)->user);
-  else
-    return NULL;
+  return nullptr;
 }
 
-void event_loop_t::destroy_func(wl_listener *listener, void *)
+void event_loop_t::destroy_func(wl_listener *listener, void */*unused*/)
 {
-  event_loop_t::data_t *data = reinterpret_cast<event_loop_t::data_t*>(reinterpret_cast<listener_t*>(listener)->user);
+  auto *data = reinterpret_cast<event_loop_t::data_t*>(reinterpret_cast<listener_t*>(listener)->user);
   if(data->destroy)
     data->destroy();
 }
 
 int event_loop_t::event_loop_fd_func(int fd, uint32_t mask, void *data)
 {
-  std::function<int(int, uint32_t)> *f = reinterpret_cast<std::function<int(int, uint32_t)>*>(data);
+  auto *f = reinterpret_cast<std::function<int(int, uint32_t)>*>(data);
   return (*f)(fd, mask);
 }
 
 int event_loop_t::event_loop_timer_func(void *data)
 {
-  std::function<int()> *f = reinterpret_cast<std::function<int()>*>(data);
+  auto *f = reinterpret_cast<std::function<int()>*>(data);
   return (*f)();
 }
 
 int event_loop_t::event_loop_signal_func(int signal_number, void *data)
 {
-  std::function<int(int)> *f = reinterpret_cast<std::function<int(int)>*>(data);
+  auto *f = reinterpret_cast<std::function<int(int)>*>(data);
   return (*f)(signal_number);
 }
 
 void event_loop_t::event_loop_idle_func(void *data)
 {
-  std::function<void()> *f = reinterpret_cast<std::function<void()>*>(data);
+  auto *f = reinterpret_cast<std::function<void()>*>(data);
   (*f)();
 }
 
@@ -711,25 +745,39 @@ event_loop_t::~event_loop_t()
   fini();
 }
 
-event_loop_t::event_loop_t(const event_loop_t &p)
+event_loop_t::event_loop_t(const event_loop_t& e)
 {
-  event_loop = p.event_loop;
-  data = p.data;
+  event_loop = e.event_loop;
+  data = e.data;
   data->counter++;
 }
 
-event_loop_t &event_loop_t::operator=(const event_loop_t& p)
+event_loop_t::event_loop_t(event_loop_t&& e) noexcept
 {
+  operator=(std::move(e));
+}
+
+event_loop_t &event_loop_t::operator=(const event_loop_t& e)
+{
+  if(&e == this)
+    return *this;
   fini();
-  event_loop = p.event_loop;
-  data = p.data;
+  event_loop = e.event_loop;
+  data = e.data;
   data->counter++;
   return *this;
 }
 
-bool event_loop_t::operator==(const event_loop_t &c) const
+event_loop_t &event_loop_t::operator=(event_loop_t&& e) noexcept
 {
-  return c_ptr() == c.c_ptr();
+  std::swap(event_loop, e.event_loop);
+  std::swap(data, e.data);
+  return *this;
+}
+
+bool event_loop_t::operator==(const event_loop_t& e) const
+{
+  return c_ptr() == e.c_ptr();
 }
 
 wl_event_loop *event_loop_t::c_ptr() const
@@ -773,17 +821,17 @@ const std::function<void()> &event_loop_t::on_destroy()
   return data->destroy;
 }
 
-int event_loop_t::dispatch(int timeout)
+int event_loop_t::dispatch(int timeout) const
 {
   return wl_event_loop_dispatch(c_ptr(), timeout);
 }
 
-void event_loop_t::dispatch_idle()
+void event_loop_t::dispatch_idle() const
 {
   wl_event_loop_dispatch_idle(c_ptr());
 }
 
-int event_loop_t::get_fd()
+int event_loop_t::get_fd() const
 {
   return wl_event_loop_get_fd(c_ptr());
 }
