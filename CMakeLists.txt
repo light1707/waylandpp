@@ -105,7 +105,7 @@ if(BUILD_LIBRARIES)
 
   # required libraries
   pkg_check_modules(WAYLAND_CLIENT REQUIRED "wayland-client>=1.11.0")
-  pkg_libs_full_path(WAYLAND_CLIENT)
+  pkg_check_modules(WAYLAND_SERVER REQUIRED "wayland-server>=1.11.0")
   pkg_check_modules(WAYLAND_EGL REQUIRED wayland-egl)
   pkg_libs_full_path(WAYLAND_EGL)
   pkg_check_modules(WAYLAND_CURSOR REQUIRED wayland-cursor)
@@ -160,8 +160,12 @@ if(BUILD_LIBRARIES)
     "include/wayland-client.hpp;include/wayland-util.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-client-protocol.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-version.hpp"
     src/wayland-client.cpp src/wayland-util.cpp wayland-client-protocol.cpp wayland-client-protocol.hpp)
   # Report undefined references only for the base library.
+  define_library(wayland-server++ "${WAYLAND_SERVER_CFLAGS}" "${WAYLAND_SERVER_LIBRARIES}"
+    "include/wayland-server.hpp;include/wayland-util.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-version.hpp"
+    src/wayland-server.cpp src/wayland-util.cpp)
   if(${CMAKE_VERSION} VERSION_GREATER "3.14.0")
     target_link_options(wayland-client++ PRIVATE "-Wl,--no-undefined")
+    target_link_options(wayland-server++ PRIVATE "-Wl,--no-undefined")
   endif()
   define_library(wayland-client-extra++ "${WAYLAND_CLIENT_CFLAGS}" "${WAYLAND_CLIENT_LIBRARIES}"
     "${CMAKE_CURRENT_BINARY_DIR}/wayland-client-protocol-extra.hpp"
@@ -178,7 +182,8 @@ if(BUILD_LIBRARIES)
 
   # Install libraries
   install(FILES ${PROTO_XMLS} ${PROTO_XMLS_EXTRA} ${PROTO_XMLS_UNSTABLE} DESTINATION "${INSTALL_FULL_PKGDATADIR}/protocols")
-  install(TARGETS wayland-client++ wayland-client-extra++ wayland-egl++ wayland-cursor++ EXPORT ${CMAKE_PROJECT_NAME}-targets
+  install(TARGETS wayland-client++ wayland-server++ wayland-client-extra++ wayland-egl++ wayland-cursor++ EXPORT ${CMAKE_PROJECT_NAME}-targets
+
     LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}"
     ARCHIVE DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}"
     PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_FULL_INCLUDEDIR}"

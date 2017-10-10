@@ -46,6 +46,11 @@ namespace wayland
 
   class array_t;
 
+  namespace server
+  {
+    class resource_t;
+  }
+
   namespace detail
   {
     /** \brief Check the return value of a C function and throw exception on
@@ -470,6 +475,7 @@ namespace wayland
 
     friend class proxy_t;
     friend class detail::argument_t;
+    friend class server::resource_t;
 
   public:
     array_t();
