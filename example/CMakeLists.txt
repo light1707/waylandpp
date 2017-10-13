@@ -46,6 +46,10 @@ target_link_libraries(proxy_wrapper wayland-client++ Threads::Threads)
 
 add_executable(shm shm.cpp)
 target_link_libraries(shm wayland-client++ wayland-client-extra++ wayland-cursor++)
+
+add_executable(server server.cpp)
+target_link_libraries(server wayland-server++)
+
 if(LIBRT)
   target_link_libraries(shm "${LIBRT}")
 endif()
