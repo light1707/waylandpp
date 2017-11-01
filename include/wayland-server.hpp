@@ -106,6 +106,11 @@ namespace wayland
       wl_display *c_ptr() const;
       wayland::detail::any &user_data();
 
+      /** Retruns the event loop
+       *
+       * This function return the event loop associated with the display.
+       * It can be used to manually dispatch events instead of using run().
+       */
       event_loop_t get_event_loop() const;
 
       /** Add a socket to Wayland display for the clients to connect.
@@ -129,8 +134,13 @@ namespace wayland
        * The function also fails if the user do not have write permission in the
        * XDG_RUNTIME_DIR path or if the socket name is already in use.
        */
-
       int add_socket(const std::string& name) const;
+
+      /** Add the default socket to Wayland display for the clients to connect.
+       *
+       * This uses add_socket() to add the default socket 'wayland-0' to the
+       * Wayland display, incrementing the number if it already exists.
+       */
       std::string add_socket_auto() const;
 
       /**  Add a socket with an existing fd to Wayland display for the clients to connect.
@@ -143,8 +153,27 @@ namespace wayland
        * with both bind() and listen() already called.
        */
       int add_socket_fd(int sock_fd) const;
+
+      /** Stops the event dispatching loop
+       *
+       * This funtion terminates the loop in the function run() and thus stops
+       * further dispatching of events.
+       */
       void terminate() const;
+
+      /** Runs the internal event dispatching loop
+       * This function is the internal event dispatching loop and can be used
+       * in case the events shall not be manually dispatched using
+       * get_event_loop(). This function returns when terminate() is called.
+       */
       void run() const;
+
+      /** Sends buffered requests to the clients.
+       *
+       * Requests that are sent to a client are buffered. This flushes the
+       * buffers of all client connections and sends pendings requests to
+       * the clients. This is an integral part of every event loop.
+       */
       void flush_clients() const;
 
       /** Get the current serial number
@@ -167,6 +196,13 @@ namespace wayland
        *  be notified, carrying the new client_t object.
        */
       std::function<void(client_t&)> &on_client_created();
+
+      /** Create client from a file descriptor
+       *
+       * Normally, clients connect to the socket created with add_socket()
+       * or add_socket_auto(). Here, a new client can be created with an
+       * existing connection using the associated file descriptor.
+       */
       client_t client_create(int fd);
 
       /** Get the list of currently connected clients
@@ -192,6 +228,8 @@ namespace wayland
        * Clients that try to bind to a global that was filtered out will
        * have an error raised.
        */
+      // TODO: wl_display_set_global_filter
+
       /** Adds a new protocol logger.
        *
        * When a new protocol message arrives or is sent from the server
@@ -208,7 +246,7 @@ namespace wayland
        *
        * \return The protol logger object on success, NULL on failure.
        */
-      // TODO: wl_display_set_global_filter, wl_display_add_protocol_logger
+      // TODO: wl_display_add_protocol_logger
     };
 
     class resource_t;
@@ -345,6 +383,13 @@ namespace wayland
        * object ID.
        */
       resource_t get_object(uint32_t id);
+
+      /** Post "not enough memory" error to the client
+       *
+       * If the compositor has not enough memory to fulfill a certail request
+       * of the client, this function can be called to notify the client of
+       * this circumstance.
+       */
       void post_no_memory() const;
 
       /** Add a listener for the client's resource creation signal
@@ -359,6 +404,11 @@ namespace wayland
        * \return The display object the client is associated with.
        */
       display_t get_display() const;
+
+      /** Get a list of the clients resources.
+       *
+       * \return A list of resources used by the clienzt
+       */
       std::list<resource_t> get_resource_list() const;
     };
 
@@ -486,16 +536,37 @@ namespace wayland
        * this circumstance.
        */
       void post_no_memory() const;
+
+      /** Get the internal ID of the resource
+       *
+       * \return the internal ID of the resource
+       */
       uint32_t get_id() const;
+
+      /** Get the associated client
+       *
+       * \return the client that owns the resource.
+       */
       client_t get_client() const;
+
+      /** Get interface version
+       *
+       * \return Interface version this resource has been constructed with.
+       */
       unsigned int get_version() const;
 
       /** Retrieve the interface name (class) of a resource object.
+       *
+       * \return Interface name of the resource object.
        */
       std::string get_class();
       std::function<void()> &on_destroy();
     };
 
+    /** Global object.
+     *
+     * \tparam resource Resource class whose interface shall be used
+     */
     template <class resource>
     class global_t
     {
@@ -533,6 +604,11 @@ namespace wayland
     public:
       global_t() = delete;
 
+      /** Create a global object
+       *
+       * \param display Parent display object
+       * \param version Interface version
+       */
       global_t(display_t &display, unsigned int version = resource::max_version)
       {
         data = new data_t;
@@ -604,6 +680,12 @@ namespace wayland
         return data->user_data;
       }
 
+      /** Adds a listener for the bind signal.
+       *
+       *  When a client binds to a global object, registered listeners
+       *  will be notified, carrying the client_t object and the new
+       *  resource_t object.
+       */
       std::function<void(client_t, resource)> &on_bind()
       {
         return data->bind;
@@ -653,13 +735,106 @@ namespace wayland
       wl_event_loop *c_ptr() const;
       wayland::detail::any &user_data();
 
+      /** Create a file descriptor event source
+       *
+       * \param fd The file descriptor to watch.
+       * \param mask A bitwise-or of which events to watch for: WL_EVENT_READABLE, WL_EVENT_WRITABLE.
+       * \param func The file descriptor dispatch function.
+       * \return A new file descriptor event source.
+       *
+       * The given file descriptor is initially watched for the events given in
+       * \c mask. This can be changed as needed with event_source_t::fd_update().
+       *
+       * If it is possible that program execution causes the file descriptor to be
+       * read while leaving the data in a buffer without actually processing it,
+       * it may be necessary to register the file descriptor source to be re-checked,
+       * see event_source_t::check(). This will ensure that the dispatch function
+       * gets called even if the file descriptor is not readable or writable
+       * anymore. This is especially useful with IPC libraries that automatically
+       * buffer incoming data, possibly as a side-effect of other operations.
+       */
       event_source_t add_fd(int fd, uint32_t mask, const std::function<int(int, uint32_t)> &func);
+
+      /** Create a timer event source
+       *
+       * \param func The timer dispatch function.
+       * \return A new timer event source.
+       *
+       * The timer is initially disarmed. It needs to be armed with a call to
+       * event_source_t::timer_update() before it can trigger a dispatch call.
+       */
       event_source_t add_timer(const std::function<int()> &func);
+
+      /** Create a POSIX signal event source
+       *
+       * \param signal_number Number of the signal to watch for.
+       * \param func The signal dispatch function.
+       * \return A new signal event source.
+       *
+       * This function blocks the normal delivery of the given signal in the calling
+       * thread, and creates a "watch" for it. Signal delivery no longer happens
+       * asynchronously, but by wl_event_loop_dispatch() calling the dispatch
+       * callback function \c func.
+       *
+       * It is the caller's responsibility to ensure that all other threads have
+       * also blocked the signal.
+       */
       event_source_t add_signal(int signal_number, const std::function<int(int)> &func);
+
+      /** Create an idle task
+       *
+       * \param func The idle task dispatch function.
+       * \return A new idle task (an event source).
+       *
+       * Idle tasks are dispatched before wl_event_loop_dispatch() goes to sleep.
+       * See wl_event_loop_dispatch() for more details.
+       *
+       * Idle tasks fire once, and are automatically destroyed right after the
+       * callback function has been called.
+       *
+       * An idle task can be cancelled before the callback has been called by
+       * event_source_t::remove(). Calling event_source_t::remove() after or from
+       * within the callback results in undefined behaviour.
+       */
       event_source_t add_idle(const std::function<void()> &func);
       const std::function<void()> &on_destroy();
+
+      /** Wait for events and dispatch them
+       *
+       * \param timeout The polling timeout in milliseconds.
+       * \return 0 for success, -1 for polling error.
+       *
+       * All the associated event sources are polled. This function blocks until
+       * any event source delivers an event (idle sources excluded), or the timeout
+       * expires. A timeout of -1 disables the timeout, causing the function to block
+       * indefinitely. A timeout of zero causes the poll to always return immediately.
+       *
+       * All idle sources are dispatched before blocking. An idle source is destroyed
+       * when it is dispatched. After blocking, all other ready sources are
+       * dispatched. Then, idle sources are dispatched again, in case the dispatched
+       * events created idle sources. Finally, all sources marked with
+       * event_source_t::check() are dispatched in a loop until their dispatch
+       * functions all return zero.
+       */
       int dispatch(int timeout) const;
+
+      /** Dispatch the idle sources
+       */
       void dispatch_idle() const;
+
+      /** Get the event loop file descriptor
+       *
+       * \return The aggregate file descriptor.
+       *
+       * This function returns the aggregate file descriptor, that represents all
+       * the event sources (idle sources excluded) associated with the given event
+       * loop context. When any event source makes an event available, it will be
+       * reflected in the aggregate file descriptor.
+       *
+       * When the aggregate file descriptor delivers an event, one can call
+       * event_loop_t::dispatch() on the event loop context to dispatch all the
+       * available events.
+       */
       int get_fd() const;
     };
 
@@ -675,8 +850,51 @@ namespace wayland
     public:
       event_source_t() = delete;
       wl_event_loop *c_ptr() const;
+
+      /** Arm or disarm a timer
+       *
+       * \param ms_delay The timeout in milliseconds.
+       * \return 0 on success, -1 on failure.
+       *
+       * If the timeout is zero, the timer is disarmed.
+       *
+       * If the timeout is non-zero, the timer is set to expire after the given
+       * timeout in milliseconds. When the timer expires, the dispatch function
+       * set with event_loop_t::add_timer() is called once from
+       * event_loop_t::dispatch(). If another dispatch is desired after another
+       * expiry, event_source_t::timer_update() needs to be called again.
+       */
       int timer_update(int ms_delay);
+
+      /** Update a file descriptor source's event mask
+       *
+       * \param mask The new mask, a bitwise-or of: WL_EVENT_READABLE, WL_EVENT_WRITABLE.
+       * \return 0 on success, -1 on failure.
+       *
+       * This changes which events, readable and/or writable, cause the dispatch
+       * callback to be called on.
+       *
+       * File descriptors are usually writable to begin with, so they do not need to
+       * be polled for writable until a write actually fails. When a write fails,
+       * the event mask can be changed to poll for readable and writable, delivering
+       * a dispatch callback when it is possible to write more. Once all data has
+       * been written, the mask can be changed to poll only for readable to avoid
+       * busy-looping on dispatch.
+       */
       int fd_update(uint32_t mask);
+
+      /** Mark event source to be re-checked
+       *
+       * This function permanently marks the event source to be re-checked after
+       * the normal dispatch of sources in event_loop_t::dispatch(). Re-checking
+       * will keep iterating over all such event sources until the dispatch
+       * function for them all returns zero.
+       *
+       * Re-checking is used on sources that may become ready to dispatch as a
+       * side-effect of dispatching themselves or other event sources, including idle
+       * sources. Re-checking ensures all the incoming events have been fully drained
+       * before event_loop_t::dispatch() returns.
+       */
       void check();
     };
   }
