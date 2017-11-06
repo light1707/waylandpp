@@ -838,7 +838,7 @@ namespace wayland
       int get_fd() const;
     };
 
-    class event_source_t
+    class event_source_t : public wayland::detail::refcounted_wrapper<wl_event_source>
     {
     private:
       wl_event_source *event_source = nullptr;
@@ -849,7 +849,7 @@ namespace wayland
 
     public:
       event_source_t() = delete;
-      wl_event_loop *c_ptr() const;
+      wl_event_source *c_ptr() const;
 
       /** Arm or disarm a timer
        *
@@ -864,7 +864,7 @@ namespace wayland
        * event_loop_t::dispatch(). If another dispatch is desired after another
        * expiry, event_source_t::timer_update() needs to be called again.
        */
-      int timer_update(int ms_delay);
+      int timer_update(int ms_delay) const;
 
       /** Update a file descriptor source's event mask
        *
@@ -881,7 +881,7 @@ namespace wayland
        * been written, the mask can be changed to poll only for readable to avoid
        * busy-looping on dispatch.
        */
-      int fd_update(uint32_t mask);
+      int fd_update(uint32_t mask) const;
 
       /** Mark event source to be re-checked
        *
@@ -895,7 +895,7 @@ namespace wayland
        * sources. Re-checking ensures all the incoming events have been fully drained
        * before event_loop_t::dispatch() returns.
        */
-      void check();
+      void check() const;
     };
   }
 }

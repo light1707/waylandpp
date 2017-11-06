@@ -839,21 +839,28 @@ int event_loop_t::get_fd() const
 //-----------------------------------------------------------------------------
 
 event_source_t::event_source_t(wl_event_source *p)
-  : event_source(p)
+  : wayland::detail::refcounted_wrapper<wl_event_source>({p, wl_event_source_remove})
 {
 }
 
-int event_source_t::timer_update(int ms_delay)
+wl_event_source *event_source_t::c_ptr() const
 {
-  return wl_event_source_timer_update(event_source, ms_delay);
+  if(!event_source)
+    throw std::runtime_error("event_source is null.");
+  return event_source;
 }
 
-int event_source_t::fd_update(uint32_t mask)
+int event_source_t::timer_update(int ms_delay) const
 {
-  return wl_event_source_fd_update(event_source, mask);
+  return wl_event_source_timer_update(c_ptr(), ms_delay);
 }
 
-void event_source_t::check()
+int event_source_t::fd_update(uint32_t mask) const
 {
-  wl_event_source_check(event_source);
+  return wl_event_source_fd_update(c_ptr(), mask);
+}
+
+void event_source_t::check() const
+{
+  wl_event_source_check(c_ptr());
 }
