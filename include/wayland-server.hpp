@@ -692,6 +692,18 @@ namespace wayland
       }
     };
 
+    struct fd_event_mask_t : public wayland::detail::bitfield<2, -1>
+    {
+      fd_event_mask_t(const wayland::detail::bitfield<2, -1> &b)
+        : wayland::detail::bitfield<2, -1>(b) {}
+      fd_event_mask_t(const uint32_t value)
+        : wayland::detail::bitfield<2, -1>(value) {}
+      static const wayland::detail::bitfield<2, -1> readable;
+      static const wayland::detail::bitfield<2, -1> writable;
+      static const wayland::detail::bitfield<2, -1> hangup;
+      static const wayland::detail::bitfield<2, -1> error;
+    };
+
     class event_loop_t
     {
     private:
@@ -738,7 +750,7 @@ namespace wayland
       /** Create a file descriptor event source
        *
        * \param fd The file descriptor to watch.
-       * \param mask A bitwise-or of which events to watch for: WL_EVENT_READABLE, WL_EVENT_WRITABLE.
+       * \param mask A bitwise-or of which events to watch for.
        * \param func The file descriptor dispatch function.
        * \return A new file descriptor event source.
        *
@@ -753,7 +765,7 @@ namespace wayland
        * anymore. This is especially useful with IPC libraries that automatically
        * buffer incoming data, possibly as a side-effect of other operations.
        */
-      event_source_t add_fd(int fd, uint32_t mask, const std::function<int(int, uint32_t)> &func);
+      event_source_t add_fd(int fd, fd_event_mask_t mask, const std::function<int(int, uint32_t)> &func);
 
       /** Create a timer event source
        *
@@ -868,7 +880,7 @@ namespace wayland
 
       /** Update a file descriptor source's event mask
        *
-       * \param mask The new mask, a bitwise-or of: WL_EVENT_READABLE, WL_EVENT_WRITABLE.
+       * \param mask The new mask.
        * \return 0 on success, -1 on failure.
        *
        * This changes which events, readable and/or writable, cause the dispatch
@@ -881,7 +893,7 @@ namespace wayland
        * been written, the mask can be changed to poll only for readable to avoid
        * busy-looping on dispatch.
        */
-      int fd_update(uint32_t mask) const;
+      int fd_update(fd_event_mask_t mask) const;
 
       /** Mark event source to be re-checked
        *
