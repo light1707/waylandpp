@@ -31,6 +31,47 @@ using namespace wayland::server;
 using namespace wayland::server::detail;
 using namespace wayland::detail;
 
+namespace
+{
+
+log_handler g_log_handler;
+
+extern "C"
+void _c_log_handler(const char *format, va_list args)
+{
+  if(!g_log_handler)
+    return;
+
+  // Format string
+  va_list args_copy;
+
+  // vsnprintf consumes args, so copy beforehand
+  va_copy(args_copy, args);
+  int length = std::vsnprintf(nullptr, 0, format, args);
+  if(length < 0)
+    throw std::runtime_error("Error getting length of formatted wayland-client log message");
+
+  // check for possible overflow - could be done at runtime but the following should hold on all usual platforms
+  static_assert(std::numeric_limits<std::vector<char>::size_type>::max() >= std::numeric_limits<int>::max() + 1u /* NUL */, "vector constructor must allow size big enough for vsnprintf return value");
+
+  // for terminating NUL
+  length++;
+
+  std::vector<char> buf(static_cast<std::vector<char>::size_type>(length));
+  if(std::vsnprintf(buf.data(), buf.size(), format, args_copy) < 0)
+    throw std::runtime_error("Error formatting wayland-client log message");
+
+  g_log_handler(buf.data());
+}
+
+}
+
+void wayland::server::set_log_handler(log_handler handler)
+{
+  g_log_handler = handler;
+  wl_log_set_handler_server(_c_log_handler);
+}
+
 //-----------------------------------------------------------------------------
 
 display_t::data_t *display_t::wl_display_get_user_data(wl_display *display)
