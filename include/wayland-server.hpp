@@ -66,6 +66,7 @@ namespace wayland
     void set_log_handler(const log_handler& handler);
 
     class client_t;
+    class global_base_t;
     template <class resource> class global_t;
     class event_loop_t;
     class event_source_t;
@@ -79,6 +80,7 @@ namespace wayland
         std::function<void(client_t&)> client_created;
         detail::listener_t destroy_listener;
         detail::listener_t client_created_listener;
+        std::function<bool(client_t, global_base_t)> filter_func;
         wayland::detail::any user_data;
         unsigned int counter = 0;
       };
@@ -89,6 +91,7 @@ namespace wayland
       static void destroy_func(wl_listener *listener, void *data);
       static void client_created_func(wl_listener *listener, void *cl);
       static data_t *wl_display_get_user_data(wl_display *display);
+      static bool c_filter_func(const wl_client *client, const wl_global *global, void *data);
 
     protected:
       display_t(wl_display *c);
@@ -244,7 +247,7 @@ namespace wayland
        * Clients that try to bind to a global that was filtered out will
        * have an error raised.
        */
-      // TODO: wl_display_set_global_filter
+      void set_global_filter(std::function<bool(client_t, global_base_t)> filter);
 
       /** Adds a new protocol logger.
        *
@@ -287,7 +290,7 @@ namespace wayland
 
       static void destroy_func(wl_listener *listener, void *data);
       static void resource_created_func(wl_listener *listener, void *res);
-      static enum wl_iterator_result resource_iterator(struct wl_resource *resource, void *data);
+      static wl_iterator_result resource_iterator(wl_resource *resource, void *data);
       static data_t *wl_client_get_user_data(wl_client *client);
 
     protected:
@@ -582,6 +585,10 @@ namespace wayland
     /** Global object base class */
     class global_base_t
     {
+    private:
+      void fini();
+      bool has_interface(const wl_interface *interface);
+
     protected:
       struct data_t
       {
@@ -589,13 +596,13 @@ namespace wayland
         unsigned int counter = 0;
       };
 
+      global_base_t(display_t &display, const wl_interface* interface, int version, data_t *dat, wl_global_bind_func_t func);
+
       wl_global *global = nullptr;
       data_t *data = nullptr;
 
-      global_base_t(display_t &display, const wl_interface* interface, int version, data_t *dat, wl_global_bind_func_t func);
-      void fini();
-
     public:
+      global_base_t(wl_global *g);
       global_base_t(const global_base_t& g);
       global_base_t(global_base_t&& g) noexcept;
       ~global_base_t();
@@ -604,6 +611,17 @@ namespace wayland
       bool operator==(const global_base_t& g) const;
       wl_global *c_ptr() const;
       wayland::detail::any &user_data();
+
+      /** Check for specific interface.
+       *
+       * \tparam resource Resource class for comparison
+       * \return true if the global has the same interface as the resource class
+       */
+      template <typename resource>
+      bool has_interface() // instead if wl_global_get_interface
+      {
+        return has_interface(resource::interface);
+      }
     };
 
     /** Global object.
@@ -619,7 +637,7 @@ namespace wayland
         std::function<void(client_t, resource)> bind;
       };
 
-      static void bind_func(struct wl_client *cl, void *d, uint32_t ver, uint32_t id)
+      static void bind_func(wl_client *cl, void *d, uint32_t ver, uint32_t id)
       {
         auto *data = reinterpret_cast<data_t*>(d);
         client_t client(cl);

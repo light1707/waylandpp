@@ -542,6 +542,7 @@ struct interface_t : public element_t
        << "  static constexpr const unsigned int max_version = " << version << ";" << std::endl
        << std::endl
        << "  friend class global_t<" << name << "_t>;" << std::endl
+       << "  friend class global_base_t;" << std::endl
        << std::endl;
 
     ss << "public:" << std::endl

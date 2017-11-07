@@ -1,6 +1,5 @@
 #include <wayland-server-protocol.hpp>
 #include <iostream>
-#include <sys/mman.h>
 
 using namespace wayland::server;
 
@@ -48,7 +47,7 @@ struct buffer_data
   buffer_data& operator=(buffer_data&&) = default;
 
   buffer_data(shm_pool_t shm_pool, int32_t offset, int32_t width, int32_t height, int32_t stride, shm_format format)
-    : shm_pool(std::move(shm_pool)), offset(offset), width(width), height(height), stride(stride), format(std::move(format))
+    : shm_pool(std::move(shm_pool)), offset(offset), width(width), height(height), stride(stride), format(format)
   {
   }
 };
@@ -212,6 +211,10 @@ public:
 
     // Handle surfaces and regions
     compositor.on_bind() = bind_mem_fn(&server::compositor_bind, this);
+
+    // Don't show anyone the seat global.
+    display.set_global_filter([] (const client_t& client, global_base_t global)
+                              { return !global.has_interface<seat_t>(); });
   }
 
   // Main event loop

@@ -256,6 +256,17 @@ std::list<client_t> display_t::get_client_list() const
   return clients;
 }
 
+bool display_t::c_filter_func(const wl_client *client, const wl_global *global, void *data)
+{
+  return static_cast<display_t::data_t*>(data)->filter_func(client_t(const_cast<wl_client*>(client)), global_base_t(const_cast<wl_global*>(global)));
+}
+
+void display_t::set_global_filter(std::function<bool(client_t, global_base_t)> filter)
+{
+  data->filter_func = filter;
+  wl_display_set_global_filter(c_ptr(), c_filter_func, data);
+}
+
 //-----------------------------------------------------------------------------
 
 client_t::data_t *client_t::wl_client_get_user_data(wl_client *client)
@@ -421,7 +432,7 @@ display_t client_t::get_display() const
   return wl_client_get_display(c_ptr());
 }
 
-enum wl_iterator_result client_t::resource_iterator(struct wl_resource *resource, void *data)
+enum wl_iterator_result client_t::resource_iterator(wl_resource *resource, void *data)
 {
   reinterpret_cast<std::list<resource_t>*>(data)->push_back(resource_t(resource));
   return WL_ITERATOR_CONTINUE;
@@ -709,11 +720,16 @@ std::function<void()> &resource_t::on_destroy()
 
 //-----------------------------------------------------------------------------
 
+bool global_base_t::has_interface(const wl_interface *interface)
+{
+  return interface == wl_global_get_interface(c_ptr());
+}
+
 global_base_t::global_base_t(display_t &display, const wl_interface* interface, int version, data_t *dat, wl_global_bind_func_t func)
 {
   data = dat;
   data->counter = 1;
-  global = wl_global_create(display.c_ptr(), interface, version, data,func);
+  global = wl_global_create(display.c_ptr(), interface, version, data, func);
 }
 
 void global_base_t::fini()
@@ -729,6 +745,13 @@ void global_base_t::fini()
 global_base_t::~global_base_t()
 {
   fini();
+}
+
+global_base_t::global_base_t(wl_global *g)
+{
+  global = g;
+  data = static_cast<data_t*>(wl_global_get_user_data(c_ptr()));
+  data->counter++;
 }
 
 global_base_t::global_base_t(const global_base_t& g)
