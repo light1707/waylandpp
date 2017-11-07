@@ -11,4 +11,4 @@ Version: @WAYLANDPP_VERSION@
 URL: https://github.com/NilsBrause/waylandpp
 Requires: wayland-client
 Cflags: -I${includedir}
-Libs: -L${libdir} -lwayland-server++ -lwayland-server
+Libs: -L${libdir} -lwayland-server++

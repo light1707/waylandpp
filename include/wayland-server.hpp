@@ -53,7 +53,7 @@ namespace wayland
      *
      * Log message is the first argument
      */
-    typedef std::function<void(std::string)> log_handler;
+    using log_handler = std::function<void(std::string)>;
 
     /** \brief Set C library log handler
      *
@@ -63,7 +63,7 @@ namespace wayland
      *
      * \param handler function that should be called for C library log messages
      */
-    void set_log_handler(log_handler handler);
+    void set_log_handler(const log_handler& handler);
 
     class client_t;
     template <class resource> class global_t;
@@ -579,23 +579,45 @@ namespace wayland
       std::function<void()> &on_destroy();
     };
 
-    /** Global object.
-     *
-     * \tparam resource Resource class whose interface shall be used
-     */
-    template <class resource>
-    class global_t
+    /** Global object base class */
+    class global_base_t
     {
-    private:
+    protected:
       struct data_t
       {
-        std::function<void(client_t, resource)> bind;
         wayland::detail::any user_data;
         unsigned int counter = 0;
       };
 
       wl_global *global = nullptr;
       data_t *data = nullptr;
+
+      global_base_t(display_t &display, const wl_interface* interface, int version, data_t *dat, wl_global_bind_func_t func);
+      void fini();
+
+    public:
+      global_base_t(const global_base_t& g);
+      global_base_t(global_base_t&& g) noexcept;
+      ~global_base_t();
+      global_base_t &operator=(const global_base_t& g);
+      global_base_t &operator=(global_base_t&& g) noexcept;
+      bool operator==(const global_base_t& g) const;
+      wl_global *c_ptr() const;
+      wayland::detail::any &user_data();
+    };
+
+    /** Global object.
+     *
+     * \tparam resource Resource class whose interface shall be used
+     */
+    template <class resource>
+    class global_t : public global_base_t
+    {
+    private:
+      struct data_t : public global_base_t::data_t
+      {
+        std::function<void(client_t, resource)> bind;
+      };
 
       static void bind_func(struct wl_client *cl, void *d, uint32_t ver, uint32_t id)
       {
@@ -604,17 +626,6 @@ namespace wayland
         resource res(client, ver, id);
         if(data->bind)
           data->bind(client, res);
-      }
-
-    protected:
-      void fini()
-      {
-        data->counter--;
-        if(data->counter == 0)
-          {
-            delete data;
-            wl_global_destroy(c_ptr());
-          }
       }
 
     public:
@@ -626,74 +637,8 @@ namespace wayland
        * \param version Interface version
        */
       global_t(display_t &display, unsigned int version = resource::max_version)
+        : global_base_t(display, resource::interface, version, new data_t, bind_func)
       {
-        data = new data_t;
-        data->counter = 1;
-        global = wl_global_create(display.c_ptr(), resource::interface, version, data, bind_func);
-      }
-
-      ~global_t()
-      {
-        fini();
-      }
-
-      global_t(const global_t& g)
-      {
-        global = g.global;
-        data = g.data;
-        data->counter++;
-      }
-
-      global_t(global_t&& g) noexcept
-      {
-        operator=(std::move(g));
-      }
-
-      global_t &operator=(const global_t& g)
-      {
-        if(&g == this)
-          return *this;
-        fini();
-        global = g.global;
-        data = g.data;
-        data->counter++;
-        return *this;
-      }
-
-      global_t &operator=(global_t&& g) noexcept
-      {
-        std::swap(global, g.global);
-        std::swap(data, g.data);
-        return *this;
-      }
-
-      bool operator==(const global_t &g) const
-      {
-        return c_ptr() == g.c_ptr();
-      }
-
-      wl_global *c_ptr() const
-      {
-        if(!global)
-          throw std::runtime_error("global is null.");
-        return global;
-      }
-
-      /* Check if a global filter is registered and use it if any.
-       *
-       * \param client The client on which the visibility shall be tested
-       *
-       * If no global filter has been registered, this funtion will
-       * return true, allowing the global to be visible to the client
-       */
-      bool is_visible(const client_t& client)
-      {
-        return wl_global_is_visible(client.c_ptr(), c_ptr());
-      }
-
-      wayland::detail::any &user_data()
-      {
-        return data->user_data;
       }
 
       /** Adds a listener for the bind signal.
@@ -704,7 +649,7 @@ namespace wayland
        */
       std::function<void(client_t, resource)> &on_bind()
       {
-        return data->bind;
+        return static_cast<data_t*>(data)->bind;
       }
     };
 
@@ -781,7 +726,7 @@ namespace wayland
        * anymore. This is especially useful with IPC libraries that automatically
        * buffer incoming data, possibly as a side-effect of other operations.
        */
-      event_source_t add_fd(int fd, fd_event_mask_t mask, const std::function<int(int, uint32_t)> &func);
+      event_source_t add_fd(int fd, const fd_event_mask_t& mask, const std::function<int(int, uint32_t)> &func);
 
       /** Create a timer event source
        *

@@ -52,7 +52,7 @@ void _c_log_handler(const char *format, va_list args)
     throw std::runtime_error("Error getting length of formatted wayland-client log message");
 
   // check for possible overflow - could be done at runtime but the following should hold on all usual platforms
-  static_assert(std::numeric_limits<std::vector<char>::size_type>::max() >= std::numeric_limits<int>::max() + 1u /* NUL */, "vector constructor must allow size big enough for vsnprintf return value");
+  static_assert(std::numeric_limits<std::vector<char>::size_type>::max() >= std::numeric_limits<int>::max() + 1U /* NUL */, "vector constructor must allow size big enough for vsnprintf return value");
 
   // for terminating NUL
   length++;
@@ -61,12 +61,14 @@ void _c_log_handler(const char *format, va_list args)
   if(std::vsnprintf(buf.data(), buf.size(), format, args_copy) < 0)
     throw std::runtime_error("Error formatting wayland-client log message");
 
+  va_end(args_copy);
+
   g_log_handler(buf.data());
 }
 
 }
 
-void wayland::server::set_log_handler(log_handler handler)
+void wayland::server::set_log_handler(const log_handler& handler)
 {
   g_log_handler = handler;
   wl_log_set_handler_server(_c_log_handler);
@@ -707,6 +709,77 @@ std::function<void()> &resource_t::on_destroy()
 
 //-----------------------------------------------------------------------------
 
+global_base_t::global_base_t(display_t &display, const wl_interface* interface, int version, data_t *dat, wl_global_bind_func_t func)
+{
+  data = dat;
+  data->counter = 1;
+  global = wl_global_create(display.c_ptr(), interface, version, data,func);
+}
+
+void global_base_t::fini()
+{
+  data->counter--;
+  if(data->counter == 0)
+    {
+      delete data;
+      wl_global_destroy(c_ptr());
+    }
+}
+
+global_base_t::~global_base_t()
+{
+  fini();
+}
+
+global_base_t::global_base_t(const global_base_t& g)
+{
+  global = g.global;
+  data = g.data;
+  data->counter++;
+}
+
+global_base_t::global_base_t(global_base_t&& g) noexcept
+{
+  operator=(std::move(g));
+}
+
+global_base_t &global_base_t::operator=(const global_base_t& g)
+{
+  if(&g == this)
+    return *this;
+  fini();
+  global = g.global;
+  data = g.data;
+  data->counter++;
+  return *this;
+}
+
+global_base_t &global_base_t::operator=(global_base_t&& g) noexcept
+{
+  std::swap(global, g.global);
+  std::swap(data, g.data);
+  return *this;
+}
+
+bool global_base_t::operator==(const global_base_t& g) const
+{
+  return c_ptr() == g.c_ptr();
+}
+
+wl_global *global_base_t::c_ptr() const
+{
+  if(!global)
+    throw std::runtime_error("global is null.");
+  return global;
+}
+
+wayland::detail::any &global_base_t::user_data()
+{
+  return data->user_data;
+}
+
+//-----------------------------------------------------------------------------
+
 const bitfield<2, -1> fd_event_mask_t::readable{WL_EVENT_READABLE};
 const bitfield<2, -1> fd_event_mask_t::writable{WL_EVENT_WRITABLE};
 const bitfield<2, -1> fd_event_mask_t::hangup{WL_EVENT_HANGUP};
@@ -838,7 +911,7 @@ wayland::detail::any &event_loop_t::user_data()
   return data->user_data;
 }
 
-event_source_t event_loop_t::add_fd(int fd, fd_event_mask_t mask, const std::function<int(int, uint32_t)> &func)
+event_source_t event_loop_t::add_fd(int fd, const fd_event_mask_t& mask, const std::function<int(int, uint32_t)> &func)
 {
   data->fd_funcs.push_back(func);
   return wl_event_loop_add_fd(event_loop, fd, mask, event_loop_t::event_loop_fd_func, &data->fd_funcs.back());
