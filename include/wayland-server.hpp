@@ -411,6 +411,29 @@ namespace wayland
        */
       void post_no_memory() const;
 
+      /** Report an internal server error
+       *
+       * \param msg A message string
+       *
+       * Report an unspecified internal implementation error and disconnect
+       * the client.
+       */
+      void post_implementation_error(std::string const& msg);
+
+      /** Report an internal server error
+       *
+       * \param msg A printf-style format string
+       * \param args Format string arguments
+       *
+       * Report an unspecified internal implementation error and disconnect
+       * the client.
+       */
+      template <typename...types>
+      void post_implementation_error(std::string const& msg, types&&... args)
+      {
+        wl_client_post_implementation_error(c_ptr(), msg.c_str(), std::forward<types...>(args...));
+      }
+
       /** Add a listener for the client's resource creation signal
        *
        * When a new resource is created for this client the listener

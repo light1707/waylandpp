@@ -422,6 +422,11 @@ void client_t::post_no_memory() const
   wl_client_post_no_memory(c_ptr());
 }
 
+void client_t::post_implementation_error(const std::string &msg)
+{
+  wl_client_post_implementation_error(c_ptr(), "%s", msg.c_str());
+}
+
 std::function<void(resource_t&)> &client_t::on_resource_created()
 {
   return data->resource_created;
