@@ -262,7 +262,7 @@ bool display_t::c_filter_func(const wl_client *client, const wl_global *global, 
   return static_cast<display_t::data_t*>(data)->filter_func(client_t(const_cast<wl_client*>(client)), global_base_t(const_cast<wl_global*>(global)));
 }
 
-void display_t::set_global_filter(std::function<bool(client_t, global_base_t)> filter)
+void display_t::set_global_filter(const std::function<bool(client_t, global_base_t)>& filter)
 {
   data->filter_func = filter;
   wl_display_set_global_filter(c_ptr(), c_filter_func, data);
@@ -423,7 +423,7 @@ void client_t::post_no_memory() const
   wl_client_post_no_memory(c_ptr());
 }
 
-void client_t::post_implementation_error(const std::string &msg)
+void client_t::post_implementation_error(const std::string &msg) const
 {
   wl_client_post_implementation_error(c_ptr(), "%s", msg.c_str());
 }
@@ -726,7 +726,7 @@ std::function<void()> &resource_t::on_destroy()
 
 //-----------------------------------------------------------------------------
 
-bool global_base_t::has_interface(const wl_interface *interface)
+bool global_base_t::has_interface(const wl_interface *interface) const
 {
   return interface == wl_global_get_interface(c_ptr());
 }
@@ -1003,7 +1003,7 @@ int event_source_t::timer_update(int ms_delay) const
   return wl_event_source_timer_update(c_ptr(), ms_delay);
 }
 
-int event_source_t::fd_update(fd_event_mask_t mask) const
+int event_source_t::fd_update(const fd_event_mask_t& mask) const
 {
   return wl_event_source_fd_update(c_ptr(), mask);
 }

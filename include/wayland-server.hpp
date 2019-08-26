@@ -26,6 +26,7 @@
 #ifndef WAYLAND_SERVER_HPP
 #define WAYLAND_SERVER_HPP
 
+#include <atomic>
 #include <functional>
 #include <list>
 #include <memory>
@@ -82,7 +83,7 @@ namespace wayland
         detail::listener_t client_created_listener;
         std::function<bool(client_t, global_base_t)> filter_func;
         wayland::detail::any user_data;
-        unsigned int counter = 0;
+        std::atomic<unsigned int> counter{1};
       };
 
       wl_display *display = nullptr;
@@ -247,7 +248,7 @@ namespace wayland
        * Clients that try to bind to a global that was filtered out will
        * have an error raised.
        */
-      void set_global_filter(std::function<bool(client_t, global_base_t)> filter);
+      void set_global_filter(const std::function<bool(client_t, global_base_t)>& filter);
 
       /** Adds a new protocol logger.
        *
@@ -281,7 +282,7 @@ namespace wayland
         detail::listener_t destroy_listener;
         detail::listener_t resource_created_listener;
         wayland::detail::any user_data;
-        unsigned int counter = 0;
+        std::atomic<unsigned int> counter{1};
         bool destroyed = false;
       };
 
@@ -418,7 +419,7 @@ namespace wayland
        * Report an unspecified internal implementation error and disconnect
        * the client.
        */
-      void post_implementation_error(std::string const& msg);
+      void post_implementation_error(std::string const& msg) const;
 
       /** Report an internal server error
        *
@@ -476,7 +477,7 @@ namespace wayland
         std::function<void()> destroy;
         detail::listener_t destroy_listener;
         wayland::detail::any user_data;
-        unsigned int counter = 0;
+        std::atomic<unsigned int> counter{1};
         bool destroyed = false;
       };
 
@@ -610,13 +611,13 @@ namespace wayland
     {
     private:
       void fini();
-      bool has_interface(const wl_interface *interface);
+      bool has_interface(const wl_interface *interface) const;
 
     protected:
       struct data_t
       {
         wayland::detail::any user_data;
-        unsigned int counter = 0;
+        std::atomic<unsigned int> counter{1};
       };
 
       global_base_t(display_t &display, const wl_interface* interface, int version, data_t *dat, wl_global_bind_func_t func);
@@ -718,7 +719,7 @@ namespace wayland
         std::list<std::function<int(int)>> signal_funcs;
         std::list<std::function<void()>> idle_funcs;
         wayland::detail::any user_data;
-        unsigned int counter = 0;
+        std::atomic<unsigned int> counter{1};
       };
 
       wl_event_loop *event_loop = nullptr;
@@ -895,7 +896,7 @@ namespace wayland
        * been written, the mask can be changed to poll only for readable to avoid
        * busy-looping on dispatch.
        */
-      int fd_update(fd_event_mask_t mask) const;
+      int fd_update(const fd_event_mask_t& mask) const;
 
       /** Mark event source to be re-checked
        *
