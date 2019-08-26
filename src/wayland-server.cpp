@@ -117,6 +117,7 @@ void display_t::fini()
   if(data->counter == 0)
     {
       delete data;
+      wl_display_destroy_clients(c_ptr());
       wl_display_destroy(c_ptr());
     }
 }
