@@ -47,6 +47,7 @@ option(BUILD_DOCUMENTATION "Create and install the HTML based API documentation 
 cmake_dependent_option(BUILD_EXAMPLES
   "whether to build the examples (requires BUILD_LIBRARIES to be ON)" OFF
   "BUILD_LIBRARIES" OFF)
+option(BUILD_SERVER "whether to build the server bindings." OFF)
 
 # Do not report undefined references in libraries, since the protocol libraries cannot be used on their own.
 if(CMAKE_SHARED_LINKER_FLAGS)
@@ -105,7 +106,9 @@ if(BUILD_LIBRARIES)
 
   # required libraries
   pkg_check_modules(WAYLAND_CLIENT REQUIRED "wayland-client>=1.11.0")
-  pkg_check_modules(WAYLAND_SERVER REQUIRED "wayland-server>=1.11.0")
+  if(BUILD_SERVER)
+    pkg_check_modules(WAYLAND_SERVER REQUIRED "wayland-server>=1.11.0")
+  endif()
   pkg_check_modules(WAYLAND_EGL REQUIRED wayland-egl)
   pkg_libs_full_path(WAYLAND_EGL)
   pkg_check_modules(WAYLAND_CURSOR REQUIRED wayland-cursor)
@@ -137,27 +140,29 @@ if(BUILD_LIBRARIES)
     COMMAND "${WAYLAND_SCANNERPP}" ${PROTO_XMLS_UNSTABLE} ${PROTO_FILES_UNSTABLE} "-x" "wayland-client-protocol-extra.hpp"
     DEPENDS "${WAYLAND_SCANNERPP}" ${PROTO_XMLS_UNSTABLE} ${PROTO_FILES_EXTRA})
 
-  set(PROTO_FILES
-    "wayland-server-protocol.hpp"
-    "wayland-server-protocol.cpp")
-  set(PROTO_FILES_EXTRA
-    "wayland-server-protocol-extra.hpp"
-    "wayland-server-protocol-extra.cpp")
-  set(PROTO_FILES_UNSTABLE
-    "wayland-server-protocol-unstable.hpp"
-    "wayland-server-protocol-unstable.cpp")
-  add_custom_command(
-    OUTPUT ${PROTO_FILES}
-    COMMAND "${WAYLAND_SCANNERPP}" "-s" "on" ${PROTO_XMLS} ${PROTO_FILES}
-    DEPENDS "${WAYLAND_SCANNERPP}" ${PROTO_XMLS})
-  add_custom_command(
-    OUTPUT ${PROTO_FILES_EXTRA}
-    COMMAND "${WAYLAND_SCANNERPP}" "-s" "on" ${PROTO_XMLS_EXTRA} ${PROTO_FILES_EXTRA} "-x" "wayland-server-protocol.hpp"
-    DEPENDS "${WAYLAND_SCANNERPP}" ${PROTO_XMLS_EXTRA})
-  add_custom_command(
-    OUTPUT ${PROTO_FILES_UNSTABLE}
-    COMMAND "${WAYLAND_SCANNERPP}" "-s" "on" ${PROTO_XMLS_UNSTABLE} ${PROTO_FILES_UNSTABLE} "-x" "wayland-server-protocol-extra.hpp"
-    DEPENDS "${WAYLAND_SCANNERPP}" ${PROTO_XMLS_UNSTABLE} ${PROTO_FILES_EXTRA})
+  if(BUILD_SERVER)
+    set(PROTO_FILES
+      "wayland-server-protocol.hpp"
+      "wayland-server-protocol.cpp")
+    set(PROTO_FILES_EXTRA
+      "wayland-server-protocol-extra.hpp"
+      "wayland-server-protocol-extra.cpp")
+    set(PROTO_FILES_UNSTABLE
+      "wayland-server-protocol-unstable.hpp"
+      "wayland-server-protocol-unstable.cpp")
+    add_custom_command(
+      OUTPUT ${PROTO_FILES}
+      COMMAND "${WAYLAND_SCANNERPP}" "-s" "on" ${PROTO_XMLS} ${PROTO_FILES}
+      DEPENDS "${WAYLAND_SCANNERPP}" ${PROTO_XMLS})
+    add_custom_command(
+      OUTPUT ${PROTO_FILES_EXTRA}
+      COMMAND "${WAYLAND_SCANNERPP}" "-s" "on" ${PROTO_XMLS_EXTRA} ${PROTO_FILES_EXTRA} "-x" "wayland-server-protocol.hpp"
+      DEPENDS "${WAYLAND_SCANNERPP}" ${PROTO_XMLS_EXTRA})
+    add_custom_command(
+      OUTPUT ${PROTO_FILES_UNSTABLE}
+      COMMAND "${WAYLAND_SCANNERPP}" "-s" "on" ${PROTO_XMLS_UNSTABLE} ${PROTO_FILES_UNSTABLE} "-x" "wayland-server-protocol-extra.hpp"
+      DEPENDS "${WAYLAND_SCANNERPP}" ${PROTO_XMLS_UNSTABLE} ${PROTO_FILES_EXTRA})
+  endif()
 
   # library building helper functions
   function(define_library TARGET CFLAGS LIBRARIES HEADERS)
@@ -182,12 +187,17 @@ if(BUILD_LIBRARIES)
     "include/wayland-client.hpp;include/wayland-util.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-client-protocol.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-version.hpp"
     src/wayland-client.cpp src/wayland-util.cpp wayland-client-protocol.cpp wayland-client-protocol.hpp)
   # Report undefined references only for the base library.
-  define_library(wayland-server++ "${WAYLAND_SERVER_CFLAGS}" "${WAYLAND_SERVER_LIBRARIES}"
-    "include/wayland-server.hpp;include/wayland-util.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-server-protocol.hpp"
-    src/wayland-server.cpp src/wayland-util.cpp wayland-server-protocol.cpp wayland-server-protocol.hpp)
   if(${CMAKE_VERSION} VERSION_GREATER "3.14.0")
     target_link_options(wayland-client++ PRIVATE "-Wl,--no-undefined")
-    target_link_options(wayland-server++ PRIVATE "-Wl,--no-undefined")
+  endif()
+  if(BUILD_SERVER)
+    define_library(wayland-server++ "${WAYLAND_SERVER_CFLAGS}" "${WAYLAND_SERVER_LIBRARIES}"
+      "include/wayland-server.hpp;include/wayland-util.hpp;${CMAKE_CURRENT_BINARY_DIR}/wayland-server-protocol.hpp"
+      src/wayland-server.cpp src/wayland-util.cpp wayland-server-protocol.cpp wayland-server-protocol.hpp)
+    # Report undefined references only for the base library.
+    if(${CMAKE_VERSION} VERSION_GREATER "3.14.0")
+      target_link_options(wayland-server++ PRIVATE "-Wl,--no-undefined")
+    endif()
   endif()
   define_library(wayland-client-extra++ "${WAYLAND_CLIENT_CFLAGS}" "${WAYLAND_CLIENT_LIBRARIES}"
     "${CMAKE_CURRENT_BINARY_DIR}/wayland-client-protocol-extra.hpp"
@@ -204,8 +214,11 @@ if(BUILD_LIBRARIES)
 
   # Install libraries
   install(FILES ${PROTO_XMLS} ${PROTO_XMLS_EXTRA} ${PROTO_XMLS_UNSTABLE} DESTINATION "${INSTALL_FULL_PKGDATADIR}/protocols")
-  install(TARGETS wayland-client++ wayland-server++ wayland-client-extra++ wayland-egl++ wayland-cursor++ EXPORT ${CMAKE_PROJECT_NAME}-targets
-
+  set(INSTALL_TARGETS wayland-client++ wayland-client-extra++ wayland-egl++ wayland-cursor++)
+  if(BUILD_SERVER)
+    list(APPEND INSTALL_TARGETS wayland-server++)
+  endif()
+  install(TARGETS ${INSTALL_TARGETS} EXPORT ${CMAKE_PROJECT_NAME}-targets
     LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}"
     ARCHIVE DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}"
     PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_FULL_INCLUDEDIR}"

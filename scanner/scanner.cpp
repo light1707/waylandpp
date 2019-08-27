@@ -837,6 +837,7 @@ void parse_args(int argc, char **argv, std::vector<arg_t>& map, std::vector<std:
       opts_end = true;
     else
     {
+      std::string key = str.substr(1);
       std::string value;
       if (c + 1 < argc && argv[c+1][0] != '-')
         value = argv[++c];
@@ -857,6 +858,15 @@ int main(int argc, char *argv[])
               << "  " << argv[0] << " [-s on] [-x extra_header.hpp] protocol1.xml [protocol2.xml ...] protocol.hpp protocol.cpp" << std::endl;
     return 1;
   }
+
+  // generate server headers?
+  auto const server = [&map] ()
+  {
+    for(auto const& opt : map)
+      if(opt.key == "s")
+        return true;
+    return false;
+  }();
 
   std::list<interface_t> interfaces;
   int enum_id = 0;
@@ -1051,11 +1061,6 @@ int main(int argc, char *argv[])
   std::fstream wayland_hpp(hpp_file, std::ios_base::out | std::ios_base::trunc);
   std::fstream wayland_cpp(cpp_file, std::ios_base::out | std::ios_base::trunc);
 
-  bool server = false;
-  for(auto const& opt : map)
-    if(opt.key == std::string("s"))
-      server = true;
-
   // header intro
   wayland_hpp << "#pragma once" << std::endl
               << std::endl
@@ -1066,6 +1071,37 @@ int main(int argc, char *argv[])
               << "#include <vector>" << std::endl
               << std::endl
               << (server ? "#include <wayland-server.hpp>" : "#include <wayland-client.hpp>") << std::endl;
+
+  std::fstream wayland_server_hpp;
+  std::fstream wayland_server_cpp;
+  if(server)
+  {
+    std::string server_hpp_file(extra[extra.size()-2]), server_cpp_file(extra[extra.size()-1]);
+    wayland_server_hpp.open(server_hpp_file, std::ios_base::out | std::ios_base::trunc);
+    wayland_server_cpp.open(server_cpp_file, std::ios_base::out | std::ios_base::trunc);
+
+    // header intro
+    wayland_server_hpp << "#pragma once" << std::endl
+                       << std::endl
+                       << "#include <array>" << std::endl
+                       << "#include <functional>" << std::endl
+                       << "#include <memory>" << std::endl
+                       << "#include <string>" << std::endl
+                       << "#include <vector>" << std::endl
+                       << std::endl
+                       << "#include <wayland-server.hpp>" << std::endl
+                       << std::endl;
+
+    // body intro
+    auto server_hpp_slash_pos = server_hpp_file.find_last_of('/');
+    auto server_hpp_basename = (server_hpp_slash_pos == std::string::npos ? server_hpp_file : server_hpp_file.substr(server_hpp_slash_pos + 1));
+    wayland_server_cpp << "#include <" << server_hpp_basename << ">" << std::endl
+                       << std::endl
+                       << "using namespace wayland::detail;" << std::endl
+                       << "using namespace wayland::server;" << std::endl
+                       << "using namespace wayland::server::detail;" << std::endl
+                       << std::endl;
+  }
 
   for(auto const& opt : map)
     if(opt.key == std::string("x"))
