@@ -346,7 +346,7 @@ struct event_t : public element_t
       else
         ss << "  return " << ret.print_type(server) << "(p);" << std::endl;
     }
-    ss << "}";
+    ss << "}" << std::endl;
 
     if(!availability_function_name().empty())
     {
@@ -354,7 +354,7 @@ struct event_t : public element_t
          << "bool " << interface_name << "_t::" << availability_function_name() << "() const" << std::endl
          << "{" << std::endl
          << "  return (get_version() >= " << since_version_constant_name() << ");" << std::endl
-         << "}";
+         << "}" << std::endl;
     }
 
     return ss.str();
@@ -440,6 +440,30 @@ struct enumeration_t : public element_t
   }
 };
 
+struct post_error_t : public element_t
+{
+  std::string print_server_header() const
+  {
+    std::stringstream ss;
+    ss << "  /** \\brief Post error: " << summary << std::endl;
+    if (!description.empty())
+      ss << "  " << description << std::endl;
+    ss << "  */" << std::endl;
+    ss << "  void post_" << name << "(std::string const& msg);" << std::endl;
+    return ss.str();
+  }
+
+  std::string print_server_body(std::string iface_name) const
+  {
+    std::stringstream ss;
+    ss << "void " << iface_name << "_t::post_" << name << "(std::string const& msg)" << std::endl
+       << "{" << std::endl
+       << "  post_error(static_cast<uint32_t>(" << iface_name << "_error::" << sanitise(name) << "), msg);" << std::endl
+       << "}" << std::endl;
+    return ss.str();
+  }
+};
+
 struct interface_t : public element_t
 {
   int version = 0;
@@ -448,6 +472,7 @@ struct interface_t : public element_t
   std::list<request_t> requests;
   std::list<event_t> events;
   std::list<enumeration_t> enums;
+  std::list<post_error_t> errors;
 
   std::string print_forward() const
   {
@@ -560,6 +585,9 @@ struct interface_t : public element_t
 
     for(auto const& event : events)
       ss << event.print_header(true) << std::endl;
+
+    for(auto const& error : errors)
+      ss << error.print_server_header() << std::endl;
 
     ss << "};" << std::endl
        << std::endl
@@ -674,6 +702,7 @@ struct interface_t : public element_t
        << "{" << std::endl
        << "  set_events(std::shared_ptr<resource_t::events_base_t>(new events_t), dispatcher);" << std::endl
        << "}" << std::endl
+       << std::endl
        << name << "_t::" << name << "_t(const resource_t &resource)" << std::endl
        << "  : resource_t(resource)" << std::endl
        << "{" << std::endl
@@ -694,6 +723,9 @@ struct interface_t : public element_t
 
     for(auto const& event : events)
       ss << event.print_body(name, true) << std::endl;
+
+    for(auto const& error : errors)
+      ss << error.print_server_body(name) << std::endl;
 
     ss << "int " << name << "_t::dispatcher(int opcode, const std::vector<any>& args, const std::shared_ptr<resource_t::events_base_t>& e)" << std::endl
        << "{" << std::endl;
@@ -1048,6 +1080,15 @@ int main(int argc, char *argv[])
             enu.width = tmp;
 
           enu.entries.push_back(enum_entry);
+          if(enu.name == "error")
+
+          {
+            post_error_t error;
+            error.name = enum_entry.name;
+            error.summary = enum_entry.summary;
+            error.description = enum_entry.description;
+            iface.errors.push_back(error);
+          }
         }
         iface.enums.push_back(enu);
       }
