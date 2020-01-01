@@ -539,7 +539,7 @@ namespace wayland
         \return A new event queue associated with this display or NULL
         on failure.
     */
-    event_queue_t create_queue();
+    event_queue_t create_queue() const;
 
     /** \brief Get a display context's file descriptor.
         \return Display object file descriptor
@@ -547,7 +547,7 @@ namespace wayland
         Return the file descriptor associated with a display so it can
         be integrated into the client's main loop.
     */
-    int get_fd();
+    int get_fd() const;
 
     /** \brief Block until all pending request are processed by the server.
         \return The number of dispatched events
@@ -556,7 +556,7 @@ namespace wayland
         Blocks until the server process all currently issued requests
         and sends out pending events on all event queues.
     */
-    int roundtrip();
+    int roundtrip() const;
 
     /** \brief Block until all pending request are processed by the server.
         \return The number of dispatched events
@@ -570,7 +570,7 @@ namespace wayland
          that calling roundtrip_queue() doesn't interfere with calling
          prepare_read() and read_events())
     */
-    int roundtrip_queue(const event_queue_t& queue);
+    int roundtrip_queue(const event_queue_t& queue) const;
 
     /** \brief Announce calling thread's intention to read events from the
      * Wayland display file descriptor
@@ -604,7 +604,7 @@ namespace wayland
      * \return New \ref read_intent for this display and the default event queue
      * \exception std::system_error on failure
      */
-    read_intent obtain_read_intent();
+    read_intent obtain_read_intent() const;
 
     /** \brief Announce calling thread's intention to read events from the
      * Wayland display file descriptor
@@ -615,7 +615,7 @@ namespace wayland
      *
      * See \ref obtain_read_intent for details.
      */
-    read_intent obtain_queue_read_intent(const event_queue_t& queue);
+    read_intent obtain_queue_read_intent(const event_queue_t& queue) const;
 
     /** \brief Dispatch events in an event queue.
         \param queue The event queue to dispatch
@@ -631,7 +631,7 @@ namespace wayland
         the display fd. For other threads this will block until the main
         thread queues events on the queue passed as argument.
     */
-    int dispatch_queue(const event_queue_t& queue);
+    int dispatch_queue(const event_queue_t& queue) const;
 
     /** \brief Dispatch pending events in an event queue.
         \param queue The event queue to dispatch
@@ -643,7 +643,7 @@ namespace wayland
         appropriately. If there are no events queued, this function
         returns immediately.
     */
-    int dispatch_queue_pending(const event_queue_t& queue);
+    int dispatch_queue_pending(const event_queue_t& queue) const;
 
     /** \brief Process incoming events.
         \return The number of dispatched events
@@ -665,7 +665,7 @@ namespace wayland
         See also: display_t::dispatch_pending(),
         display_t::dispatch_queue()
     */
-    int dispatch();
+    int dispatch() const;
 
     /** \brief Dispatch main queue events without reading from the display fd.
         \return The number of dispatched events
@@ -703,7 +703,7 @@ namespace wayland
         See also: display_t::dispatch(), display_t::dispatch_queue(),
         display_t::flush()
     */
-    int dispatch_pending();
+    int dispatch_pending() const;
 
     /** \brief Retrieve the last error that occurred on a display.
         \return The last error that occurred on display or 0 if no error
@@ -731,7 +731,7 @@ namespace wayland
         in the returned tuple will be set to false. In that case, use poll on the
         display file descriptor to wait for it to become writable again.
     */
-    std::tuple<int, bool> flush();
+    std::tuple<int, bool> flush() const;
 
     /** \brief asynchronous roundtrip
 
